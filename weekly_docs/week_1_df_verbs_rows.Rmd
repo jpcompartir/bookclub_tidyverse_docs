@@ -1,0 +1,291 @@
+---
+title: "dplyr rows"
+author: "Jack Penzer"
+date: "2023-03-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+We'll be looking at the documentation for data frame verbs which operate on rows -
+`arrange()`, `distinct()`, `filter()`
+https://dplyr.tidyverse.org/reference/index.html
+
+```{r}
+library(dplyr)
+```
+
+data frame vs tibble
+```{r}
+mtcars
+tibble::as_tibble(mtcars)
+```
+# arrange
+We'll start with arrange, whose job it is to order rows using column values, i.e. it's the order of the rows not the columns that is being arranged, though it can feel like we're arranging a column by its values.
+
+```{r}
+?arrange
+non_mask <- function(df, height){
+  
+  height_sym <- rlang::ensym(height)
+  
+  df %>%
+    mutate({{mean}} := {{mean}} + 1)
+  df %>%
+    # mutate({{mean}}:= {{mean}}) %>%
+    summarise(x = mean(!!height_sym))
+}
+
+mtcars %>%
+  arrange("cyl")
+
+mtcars %>%
+  arrange(cyl, mpg)
+mtcars %>%
+  arrange("cyl", "mpg", "vs", "am")
+```
+
+Key arguments are 
+* `.data`
+* `...` ellipsis
+*`.by_group` default = FALSE
+* `.locale` = NULL
+
+Other potentially interesting things, NAs are always sorted to the end, whether desc() - more on that - is used are not.
+
+Returns .data but with order of rows (nearly always/usually) modified
+```{r}
+mtcars %>%
+  arrange(.data = ., cyl) #orders rows by values in cyl in ascending order
+
+mtcars %>%
+  arrange(.data = ., ... = cyl, vs, gear) #uses `...` to order rows first by cyl, then by vs, then by gear
+```
+
+If we want to flip this order and arrange in descending order we can use `dplyr::desc()`
+```{r}
+?desc
+mtcars %>%
+  arrange(desc(cyl))
+
+mtcars %>%
+  arrange(desc(cyl), desc(vs), desc(gear)) #desc does not accept `...` like arrange does, so we type it out each time, otherwise we get:
+
+mtcars %>%
+  arrange(desc(cyl), vs, gear)
+
+#Or raise an error with:
+mtcars %>%
+  arrange(desc(cyl, vs, gear))
+
+```
+
+We won't touch on `dplyr::across()` yet, but it may be helpful if looking to order by an arbitrary number of columns without typing desc() a lot.
+
+Natively, `arrange()` ignores grouping:
+```{r}
+mtcars %>%
+  group_by(am) %>%
+  arrange(cyl, .by_group = FALSE)
+
+mtcars %>%
+  arrange(cyl)
+```
+
+But we can use the .by_group argument to override this!
+```{r}
+mtcars %>%
+  group_by(am) %>%
+  arrange(cyl, .by_group = TRUE)
+```
+
+Notice that when we use .by_group = TRUE, groups persist.
+
+We're going to skirt over .locale, but use backticks for non-syntactic names to access their help.
+```{r}
+?`dplyr-locale` 
+```
+
+Flagging this here as it's actually quite interesting, potentially:
+
+The C locale is not exactly the same as English locales, such as "en". The main difference is that the C locale groups the English alphabet by case, while most English locales group the alphabet by letter. For example, c("a", "b", "C", "B", "c") will sort as c("B", "C", "a", "b", "c") in the C locale, with all uppercase letters coming before lowercase letters, but will sort as c("a", "b", "B", "c", "C") in an English locale. This often makes little practical difference during data analysis, because both return identical results when case is consistent between observations.
+
+# distinct
+The `distinct()` function is somewhat similar to arrange - we have the following arguments:
+*`.data`
+*`...`
+*`.keep_all` default = FALSE
+
+Key info:
+Rows are a subset of the input but appear in the same order.
+
+Columns are not modified if ... is empty or .keep_all is TRUE. Otherwise, distinct() first calls mutate() to create new columns.
+
+Groups are not modified.
+
+Data frame attributes are preserved.
+
+
+`.data` and `ellipsis` function just like in `arrange()`:
+```{r}
+mtcars %>%
+  distinct(cyl)
+
+mtcars %>%
+  distinct(cyl, am)
+
+mtcars %>%
+  distinct(cyl, am, mpg)
+```
+
+A new and slightly more interesting argument is `.keep_all`
+```{r}
+mtcars %>%
+  distinct(cyl, .keep_all = TRUE)
+
+mtcars %>%
+  distinct(am, cyl, .keep_all = TRUE)
+```
+
+How does `distinct()` interact with groups?
+```{r}
+mtcars %>%
+  group_by(am) %>%
+  distinct(cyl)
+
+#almost the same thing as:
+mtcars %>%
+  distinct(am, cyl)
+```
+But with groups preserved in the former
+
+# dplyr::filter
+
+
+```{r}
+tibble(x = c('twitter', 'facebook'), y = c(NA, "jack_p")) %>%
+  filter(y != "jack_p")
+```
+
+
+Not to be confused with `stats::filter()`
+
+`filter`'s job is to test rows for a logical condition/s, and remove rows that do not satisfy the condition/s. Despite sounding quite simple, `filter` is one of those functions that has pretty much infinite complexity. Oficially its arguments are
+`.data`
+`...` ellipsis, but with key differences to `arrange` and `distinct` which both allow arbitrary columns.
+`.by` the experimental addition in `dplyr 1.1.0`
+`.preserve` whether to preserve groups or not.
+
+```{r}
+mtcars %>%
+  filter(am == 1)
+
+mtcars %>%
+  filter(vs == 0 | am == 1 | carb == 3) #inclusive or
+
+mtcars %>%
+  filter(vs == 0 & cyl == 4)
+
+mtcars %>%
+  filter(xor(vs == 0, cyl ==4)) #exclusive or
+
+mtcars %>%
+  filter(!(vs == 0 & cyl == 4))
+
+mtcars %>%
+  filter(!is.na(cyl))
+```
+
+We can see that `...` allows us to insert an arbitrary number of expressions which return a logical value.
+
+We can do quite a lot more with filter if we get text and other data types involved:
+
+```{r}
+starwars
+
+starwars %>%
+  filter(stringr::str_detect(sex, "\\bmale\\b")) #keeps males and female
+
+starwars %>%
+  filter(stringr::str_detect(sex, "\\bmale|female"))
+```
+
+```{r}
+starwars %>%
+  filter(height > 160 & stringr::str_detect(sex, "female"))
+```
+
+Before we could group by a variable, and then filter using a grouped summary, using two separate functions - `group_by()` and `filter()`
+```{r}
+starwars %>%
+  group_by(gender) %>%
+  filter(mass > mean(mass, na.rm = TRUE), .preserve = TRUE)
+```
+
+*New in 1.1.0*
+```{r}
+starwars %>%
+  filter(mass > mean(mass, na.rm = TRUE), .by = gender)
+```
+
+This grouping process is inline, and groups are not preserved, and we cannot use .by and .preserve!
+```{r}
+starwars %>%
+  filter(mass > mean(mass, na.rm = TRUE), .by = gender, .preserve = TRUE)
+```
+
+Given the properties of .by versus group_by... %>%, it's important to consider whether you want the grouping to persist or not if continuing the pipeline.
+```{r}
+starwars %>%
+  group_by(gender) %>%
+  filter(mass > mean(mass, na.rm = TRUE)) %>%
+  mutate(group_id = row_number(), .before = homeworld) %>%
+  
+  pull(group_id)
+
+starwars %>%
+  filter(mass > mean(mass, na.rm = TRUE), .by = gender) %>%
+  mutate(group_id = row_number(), .before = homeworld) %>%
+  pull(group_id)
+```
+
+Diving into dplyr_by
+```{r}
+?dplyr_by
+```
+- Persistent grouping with group_by()
+- Per-operation grouping with .by/by
+
+To prevent surprising results, you can't use .by on an existing grouped data frame:
+```{r}
+mtcars %>% 
+  group_by(cyl) %>%
+  summarise(cost = mean(cost), .by = c(vs, am))
+
+mtcars %>%
+  group_by(cyl) %>%
+  mutate(group_id = row_number()) %>%
+  group_by(cyl, am) %>%
+  mutate(group_id_two = row_number())
+```
+
+
+
+```{r}
+# To refer to column names that are stored as strings, use the `.data` pronoun:
+vars <- c("mass", "height")
+cond <- c(80, 150)
+starwars %>%
+  filter(
+    .data[[vars[[1]]]] > cond[[1]],
+    .data[[vars[[2]]]] > cond[[2]]
+  )
+```
+
+
+Suggestions for next week, deeper dive of dplyr_by, or slice_* family.
+
+
+

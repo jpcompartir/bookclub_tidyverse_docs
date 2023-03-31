@@ -1,0 +1,210 @@
+
+```{r}
+renv::activate()
+```
+
+```{r}
+library(dplyr)
+```
+
+#Filter's preserve argument
+Filter preserve - 
+decide whether to maintain groups that don't meet filtering conditions.
+What happens when a group has no items?
+It remains for future summarisation/other operations as NULL/NA.
+So why do that?
+If writing a report or whatnot, you may want the empty group to persist in the summary  table.
+```{r}
+mtcars %>%
+  ggplot2::ggplot(ggplot2::aes(x= cyl, y = hp)) +
+  ggplot2::geom_point()
+```
+
+Compare:
+```{r}
+mtcars %>%
+  group_by(cyl) %>%
+  filter(hp > 200) %>%
+  summarise(x = mean(disp))
+```
+
+
+```{r}
+mtcars %>%
+  group_by(cyl) %>%
+  filter(hp > 200, .preserve = TRUE) %>%
+  summarise(x = mean(disp))
+
+tibble::tibble(mtcars) %>% # come back to this
+  filter(hp > 50, .by = cyl) %>%
+  summarise(x = mean(disp))
+
+tibble::tibble(mtcars) %>%
+  filter(hp > mean(hp), .by = cyl)
+```
+
+```{r}
+tibble::tibble(
+  username = c("michael", "philippa", NA),
+  source = c("Twitter", "Twitter", "Reddit"),
+  text = c("not interesting", "interesting", "interesting")
+) %>%
+  mutate(username = ifelse(is.na(username), "na_xjd", username)) %>%
+  filter(username != "michael")
+```
+
+```{r}
+#Slice family
+`slice()`
+`slice_head()`
+`slice_tail()`
+`slice_min()`
+`slice_max()`
+`slice_sample()`
+```
+
+```{r}
+mtcars %>%
+  filter(row_number() == 10)
+```
+
+```{r}
+mtcars %>%
+  dplyr::slice(-1L)
+
+mtcars %>%
+  tibble::tibble() %>%
+  dplyr::mutate(id = row_number(), .before = 1) %>%
+  dplyr::slice(-1L, -2L, -3L)
+```
+
+
+Use formals to get the args, then use lapply to get the lengths
+```{r}
+slice_args <- list(
+  slice = formals(dplyr::slice),
+  slice_head = formals(dplyr::slice_head),
+  slice_tail = formals(dplyr::slice_tail),
+  slice_max = formals(dplyr::slice_max),
+  slice_min = formals(dplyr::slice_min),
+  slice_sample = formals(dplyr::slice_sample)
+)
+
+lapply(slice_args, length)
+
+slice_args$slice_head
+slice_args$slice
+formals(dplyr::filter)
+```
+
+
+```{r}
+?slice
+?slice_head
+?slice_tail
+?slice_max
+?slice_min
+?slice_sample
+```
+
+```{r}
+mtcars <- tibble::tibble(mtcars)
+mtcars %>%
+  dplyr::slice_max(prop = 0.25, 
+                   order_by = hp,
+                   # with_ties = FALSE
+                   )
+
+mtcars %>%
+  dplyr::slice_min(
+    prop = 0.25,
+    # n = 2,
+    order_by = hp,
+    with_ties = FALSE)
+
+mtcars %>%
+  dplyr::group_by(cyl) %>%
+  dplyr::slice_max(prop = 0.25, order_by = hp)
+
+mtcars %>%
+  dplyr::slice_head(n = 5)
+```
+
+
+
+```{r}
+?dplyr::slice_sample
+
+mtcars %>%
+  dplyr::mutate(weight = 
+    dplyr::case_when(cyl == 4 ~ 0.2,
+                     cyl == 6 ~ 0.4,
+                     cyl == 8 ~ 0.4)
+  )%>%
+  slice_sample(n = 500,
+               by = cyl,
+               replace = TRUE,
+               weight_by = weight)
+
+```
+
+```{r}
+mtcars %>%
+  slice_max(order_by = hp, n = 50) %>%
+  slice_max(order_by = drat, n = 20)
+```
+
+
+```{r}
+?dplyr_by
+```
+
+
+```{r}
+?dplyr_data_masking
+```
+
+data masking is a part of the tidyverse's non-standard evaluation, tidy evaluation. It allows us to refer to objects in our data without the laborious df$col_name syntax 
+```{r}
+mtcars$mpg
+
+mtcars <- data("mtcars")
+
+
+mtcars <- tibble::tibble(mtcars)
+
+mtcars %>%
+  summarise(mean = mean(mpg))
+
+mtcars %>%
+  mutate(mpg = "x")
+
+mtcars$mpg <- "y"
+mtcars
+```
+
+This stuff is more useful when building functions, or dealing with multiple arguments (where it becomes incredibly useful)
+
+
+```{r}
+mean(mtcars$mpg)
+
+mtcars %>%
+  mean(mpg)
+
+mtcars %>%
+  summarise(mean = mean(mpg))
+
+mtcars %>%
+  summarise(mean = mean(mtcars$mpg))
+```
+
+```{r}
+mtcars %>%
+  filter(cyl > 2, mpg > 16, disp < 250)
+```
+
+```{r}
+mtcars[mtcars$mpg < 15,]
+```
+
