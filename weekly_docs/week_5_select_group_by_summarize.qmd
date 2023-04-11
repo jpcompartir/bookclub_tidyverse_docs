@@ -1,0 +1,426 @@
+---
+title: "More of dplyr column functions"
+format: html
+execute: 
+  echo: true
+---
+
+## rename, rename_with
+
+```{r}
+#| eval: false
+??dplyr::rename
+```
+
+loading the `pizzaplace` dataframe again
+
+```{r}
+library(gt)
+dplyr::glimpse(pizzaplace)
+```
+
+### rename
+
+rename(.data, ...)
+
+```{r}
+# new_name = old_name
+#names(pizzaplace)
+pizzaplace |>
+    dplyr::rename(pizza_name = 'name')
+```
+
+### rename_with
+
+It renames columns using a function. We apply a function to select columns
+
+rename_with(.data, .fn, .cols = everything(), ...)
+
+```{r}
+# for columns that start with "t", change names to uppercase
+pizzaplace |>
+    dplyr::rename_with(
+        .cols = tidyselect::starts_with("t"),
+        .fn = toupper
+    ) |>
+    names()
+
+# for all columns, replace characters with "HELLO"
+pizzaplace |>
+    dplyr::rename_with(
+        .fn = ~ stringr::str_replace(
+            .x, 
+            pattern = "(?<=[a-z])i[a-z]e$",
+            replacement = "HELLO"    
+        )
+    ) |> names()
+```
+
+## select
+
+Keep or drop columns using their names and types
+
+```{r}
+#| eval: false
+??dplyr::select
+```
+
+
+
+```{r}
+library(dplyr)
+# names
+mtcars |>
+    dplyr::select("mpg", cyl) |> dplyr::glimpse()
+df <- tidyr::billboard
+## select columns using a character vector of column names
+df %>% select(c("track", "date.entered"))
+
+# selection operators
+mtcars |>
+    dplyr::select(mpg:hp) |> dplyr::glimpse()
+
+# select columns using negative notation
+mtcars %>% dplyr::select(-cyl) %>% dplyr::glimpse()
+
+# another way of deleting column with spaces in column names
+mtcars$`miles per gallon` <- mtcars$mpg
+
+mtcars <- mtcars %>% select(-`miles per gallon`)
+
+## select columns using a numeric vector of column positions
+mtcars %>% select(c(1, 2)) %>% glimpse()
+
+## select columns and reorder them
+mtcars %>% select(cyl,disp,everything()) %>% glimpse()
+
+# select last column
+mtcars  %>% select(vs,gear, last_col()) %>% glimpse()
+
+# Supply an offset n to select a variable located n positions from the end
+mtcars %>% select(1:last_col(5)) %>% glimpse()
+
+## group_cols()
+mtcars %>% group_by(hp,wt) %>% select(group_cols())
+
+
+## ! expression
+mtcars %>% select(!'hp') %>% glimpse()
+
+
+mtcars %>% select(!c(hp,qsec,vs,wt,am)) %>% glimpse()
+
+
+```
+
+
+For starts_with(), ends_with(), and contains() this is an exact match. For matches() this is a regular expression, and can be a stringr pattern.
+
+ignore.case If TRUE, the default, ignores case when matching names.
+
+vars A character vector of variable names.
+
+**starts_with**
+
+```{r}
+mtcars %>% select(starts_with('a')) %>% glimpse()
+```
+
+**\| and ends_with**
+
+Ends with a suffix.
+
+& and \| for selecting the intersection or the union of two sets of variables.
+
+```{r}
+mtcars %>% select(ends_with(c('b','p'))) %>% glimpse()
+
+mtcars %>% select(mpg | ends_with('k')) %>% glimpse()
+```
+
+**contains**
+
+Contains a literal string
+
+```{r}
+mtcars %>% select(wt | contains('p')) %>% glimpse()
+```
+
+**num_range**
+
+Matches a numerical range like x01, x02, x03.
+
+```{r}
+# create a sample data frame
+
+df %>% select(num_range("wk", 10:15))
+```
+
+**matches**
+
+```{r}
+df %>% select(matches("tr"))
+
+df %>% select(matches("[w][k]")) %>% glimpse()
+```
+
+**all_of()**
+
+Matches variable names in a character vector. All names must be present, otherwise an out-of-bounds error is thrown.
+
+```{r}
+vars = c("wk14","track")
+df %>% dplyr::select(all_of(vars))
+```
+
+**any_of()**
+
+doesn't check for missing variables. It is especially useful with negative selections, when you would like to make sure a variable is removed.
+
+```{r}
+vars = c("wk14","track","artist found")
+df %>% select(any_of(vars))
+```
+
+
+**where()**
+
+Applies a function to all variables and selects those for which the function returns TRUE.
+
+```{r}
+df %>% select(where(is.numeric))
+```
+
+
+
+## Groups
+
+Verbs that principally operate on groups of rows.
+
+-   count()
+-   tally()
+-   add_count()
+-   add_tally()
+
+**count()** lets you quickly count the unique values of one or more variables:
+
+count(x, ..., wt = NULL, sort = FALSE, name = NULL)
+
+```{r}
+mtcars %>% count(mpg,sort = T,name='Frequencies') %>% glimpse()
+
+# creates results like a frequency table 
+# it is useless to have 2 variable in count unless both variables are 100% equal. Otherwise it will give us 1,1,1 in count
+mtcars$mpj <- mtcars$mpg
+
+count(mtcars,sort = T)
+
+mtcars <- mtcars %>% select(-mpj)
+```
+
+**tally()** is a lower-level function that assumes you've done the grouping
+
+```{r}
+mtcars %>% tally(mpg,name='tally',sort = T)
+
+# if we add count it gives sum of all frequencies
+mtcars %>% count(mpg) %>% tally(name='tally',sort = T)
+
+```
+
+**add_count()** and **add_tally()** are equivalents to count() and tally() but use mutate() instead of summarise() so that they add a new column with group-wise counts.
+
+One disadvantage is we cannot see the groups now like `count`.
+
+```{r}
+mtcars %>% add_count(mpg, sort = T) %>% glimpse()
+```
+
+So both of these are showing all columns with mutate command unlike count and tally which only showed the original column and new frequency column.
+
+```{r}
+mtcars %>% add_tally(mpg, sort = T) %>% glimpse()
+
+# adding count here like above
+mtcars %>% count(mpg) %>% add_tally(name='added tally', sort = T) %>% glimpse()
+
+# we can do with 2 columns as well
+mtcars %>% add_tally(c(mpg,cyl) ,sort = T) %>% glimpse()
+
+# which is equal to 
+sum(mtcars$cyl)+sum(mtcars$mpg)
+```
+
+## group_by
+
+group_by() takes an existing tbl and converts it into a grouped tbl where operations are performed "by group". ungroup() removes grouping.
+
+To perform computations on the grouped data, you need to use a separate mutate() step before the group_by()
+
+```{r}
+# grouping doesn't change how the data looks (apart from listing
+# how it's grouped):
+
+# it shows how many groups are there in cyl column
+mtcars %>%
+  group_by(cyl) %>%
+  group_vars()
+
+# filtering rows by max displacement of each group of cyl
+mtcars %>% 
+  group_by(cyl) %>%
+  filter(disp == max(disp))
+
+# we can add more than 1 groups as well. 
+
+```
+
+**. add** 
+
+When FALSE, the default, group_by() will override existing groups. To add to the existing groups, use .add = TRUE.
+
+```{r}
+mtcars %>% group_by(cyl)%>%
+  filter(disp == max(disp)) %>% 
+  group_by(am,.add = T) %>% group_vars()
+
+```
+
+**Ungroup()**
+
+```{r}
+mtcars %>% group_by(cyl)%>%
+  filter(disp == max(disp)) %>% 
+  group_by(am,.add = T) %>% ungroup()
+```
+
+**group_map()**
+
+group_map() returns a list of results from calling .f on each group.
+
+```{r}
+# return a list
+mtcars %>%
+  group_by(cyl) %>%
+  group_map(~ head(.x))
+```
+
+Using group_map for returning a list of regression model output.
+
+```{r}
+iris %>%
+  group_by(Species) %>%
+  group_map(~ broom::tidy(lm(Petal.Length ~ Sepal.Length, data = .x)))
+```
+
+**group_modify()** returns a grouped tibble. In that case .f must return a data frame.
+
+```{r}
+# return a tibble grouped by `cyl` with 2 rows per group
+# the grouping data is recalculated
+mtcars %>%
+  group_by(cyl) %>%
+  group_modify(~ head(.x, 2L))
+```
+
+Similarly
+
+```{r}
+iris %>%
+  group_by(Species) %>%
+  group_modify(~ broom::tidy(lm(Petal.Length ~ Sepal.Length, data = .x))) 
+```
+
+**group_walk()** calls .f for side effects and returns the input .tbl, invisibly.
+
+```{r}
+mtcars %>%
+  group_by(cyl) %>%
+  group_walk(~ head(.x, 2L))
+```
+
+**group-nest()** Nest a tibble using a grouping specification
+
+```{r}
+iris %>%
+  group_by(Species) %>%
+  group_nest()
+```
+
+**group_split()** to group and split an ungrouped data frame,
+
+Look at the Species column in each tibble.
+
+```{r}
+ir <- iris %>% group_by(Species)
+
+group_split(ir)
+```
+
+Logically if we save the group_nest output and view it, it should look similar to group_split except Species column
+
+```{r}
+ir <- iris %>%
+  group_by(Species) %>%
+  group_nest()
+
+ir[[2]][[3]]
+```
+
+## Per-operation grouping with .by/by
+
+-   Persistent grouping with group_by()
+-   Per-operation grouping with .by/by
+
+### **Differences between `.by` and [`group_by()`](https://dplyr.tidyverse.org/reference/group_by.html)**
+                                                     |
+
+```{r}
+iris %>%
+  group_by(Species) %>%
+  summarise(length = mean(Petal.Length))
+
+
+iris %>%
+  summarise(length = mean(Petal.Length),.by=Species)
+```
+
+```{r}
+iris %>%
+  group_by(Species,Petal.Width) %>%
+  summarise(length = mean(Petal.Length) )
+
+
+iris %>%
+  summarise(length = mean(Petal.Length),.by=c(Species,Petal.Width))
+```
+
+## rowwise()
+rowwise() allows you to compute on a data frame a row-at-a-time. 
+
+```{r}
+mtcars %>% rowwise() %>% mutate(m = min(c_across(cyl:hp))) %>% glimpse()
+
+mtcars %>% mutate(m = min(c_across(cyl:hp))) %>% glimpse()
+
+```
+
+## Summarise
+
+summarise() creates a new data frame. It returns one row for each combination of grouping variables; if there are no grouping variables, the output will have a single row
+
+```{r}
+iris %>% group_by(Species) %>% summarise(m = mean(Petal.Length))
+
+# single row output without grouping variables.
+iris %>% summarise(m = mean(Petal.Length))
+
+```
+
+Summarise = summarize.
+
+using .groups
+```{r}
+iris %>% group_by(Species) %>% summarise(m = mean(Petal.Length),.groups = 'drop') %>% group_vars()
+```
+
